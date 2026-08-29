@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV Insurance Marketing and Competitor Analysis Dashboard</title>
+    <!-- Chart.js and XLSX parser for real-time Excel engine -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --navy: #072852; --blue: #004b93; --accent: #1a73e8; --bg: #f4f7fb;
+            --card: #ffffff; --border: #cbd5e1; --text: #0f172a; --muted: #64748b;
+            --green: #10b981; --amber: #f59e0b; --red: #ef4444; --card-hdr: #002b66;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', -apple-system, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); font-size: 12px; line-height: 1.35; }
+
+        /* Top Bar */
+        .app-header {
+            background: linear-gradient(90deg, #072852 0%, #0b3c7b 100%);
+            color: #fff; padding: 9px 24px; display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 3px solid #1a73e8; position: sticky; top: 0; z-index: 1000;
+        }
+        .app-header h1 { font-size: 16px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
+        .app-header p { font-size: 11px; color: #cbd5e1; margin-top: 1px; }
+
+        .excel-pill {
+            background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 4px 10px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600;
+        }
+        .excel-btn {
+            background: #10b981; color: #fff; border: none; padding: 3px 8px; border-radius: 4px;
+            font-size: 10px; font-weight: 700; cursor: pointer; transition: 0.2s;
+        }
+        .excel-btn:hover { background: #059669; }
+
+        /* Navigation Tabs */
+        .nav-tabs { background: #fff; border-bottom: 1px solid var(--border); display: flex; padding: 0 20px; gap: 4px; }
+        .tab-btn {
+            padding: 9px 16px; border: none; background: transparent; font-size: 11.5px; font-weight: 700;
+            color: #475569; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s;
+        }
+        .tab-btn:hover { color: var(--accent); background: #f8fafc; }
+        .tab-btn.active-tab { color: var(--accent); border-bottom: 3px solid var(--accent); background: #f8fafc; }
+
+        /* Slicers Bar */
+        .slicers-bar {
+            background: #fff; padding: 7px 20px; border-bottom: 1px solid #e2e8f0;
+            display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+        }
+        .slicer { display: flex; flex-direction: column; gap: 2px; min-width: 170px; flex: 1; }
+        .slicer label { font-size: 9.5px; font-weight: 800; color: var(--navy); text-transform: uppercase; }
+        .slicer select {
+            background: #fff; border: 1px solid var(--border); border-radius: 4px;
+            padding: 4.5px 7px; font-size: 11px; font-weight: 600; outline: none; cursor: pointer;
+        }
+        .btn-reset {
+            background: #002b66; color: #fff; border: none; padding: 5px 12px;
+            border-radius: 4px; font-weight: 700; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px;
+        }
+        .btn-reset:hover { background: var(--red); }
+
+        /* Canvas & Layouts */
+        .canvas { padding: 12px 20px 24px 20px; max-width: 1680px; margin: 0 auto; }
+        .page { display: none; }
+        .page.active-page { display: block; }
+        .card { background: #fff; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+        .card-hdr {
+            background: var(--card-hdr); color: #fff; padding: 6px 12px; font-size: 11px;
+            font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px;
+        }
+
+        /* KPI Scorecards */
+        .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 10px; }
+        .kpi { background: #fff; border: 1px solid var(--border); border-radius: 5px; padding: 8px 10px; text-align: center; }
+        .kpi-lbl { font-size: 9.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; }
+        .kpi-val { font-size: 16px; font-weight: 800; color: var(--navy); }
+        .kpi-note { font-size: 9px; font-weight: 700; margin-top: 1px; }
+
+        .grid-68-32 { display: grid; grid-template-columns: 66% 34%; gap: 10px; margin-bottom: 10px; }
+        .grid-50-50 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .grid-3col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 8px; }
+        .chart-h { position: relative; height: 155px; width: 100%; }
+
+        /* Tables */
+        .tbl-wrap { padding: 8px 10px; overflow-x: auto; }
+        table.styled-tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+        table.styled-tbl th { background: #f8fafc; color: #0f172a; font-weight: 700; padding: 5.5px 8px; border-bottom: 2px solid #cbd5e1; text-align: right; }
+        table.styled-tbl th:first-child { text-align: left; }
+        table.styled-tbl td { padding: 5.5px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; color: #334155; font-weight: 600; }
+        table.styled-tbl td:first-child { text-align: left; font-weight: 700; color: var(--navy); }
+        table.styled-tbl tbody tr:hover { background: #e0f2fe !important; cursor: pointer; }
+
+        /* Financial Impact Page 3 */
+        .traj-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }
+        .traj-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .traj-box { background: #fff; border: 1px solid var(--border); border-radius: 5px; padding: 10px; }
+        .traj-title { font-size: 11px; font-weight: 800; color: var(--navy); margin-bottom: 8px; }
+        .flow-wrap { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .circle { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--blue); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: var(--navy); background: #f8fafc; }
+        .arrow { font-size: 13px; font-weight: 800; color: var(--muted); }
+        .badge-growth { background: #ecfdf5; color: #047857; padding: 3px 6px; border-radius: 4px; font-weight: 700; font-size: 9.5px; text-align: center; }
+
+        /* STP Card Layouts */
+        .stp-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 10px; }
+        .stp-card { background: #fff; border: 1px solid var(--border); border-radius: 5px; padding: 10px; }
+        .stp-title { font-size: 11px; font-weight: 800; color: var(--navy); border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 6px; text-transform: uppercase; }
+        .stp-item { padding: 5px 0; border-bottom: 1px dashed #e2e8f0; }
+        .stp-item:last-child { border-bottom: none; }
+        .stp-h { font-weight: 800; font-size: 11px; margin-bottom: 1px; }
+        .stp-d { font-size: 10px; color: var(--muted); }
+        .badge-tag { background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 3px; font-weight: 700; font-size: 9.5px; display: inline-block; }
+
+        .scen-btn { padding: 5px 12px; border-radius: 16px; border: 1px solid var(--border); background: #fff; font-size: 11px; font-weight: 700; cursor: pointer; }
+        .scen-btn.active-scen { background: var(--navy); color: #fff; border-color: var(--navy); }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="app-header">
+        <div>
+            <h1>EV INSURANCE MARKETING AND COMPETITOR ANALYSIS</h1>
+            <p id="page-subtitle">Page 1: Market Overview & Competitor Benchmarking</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="excel-pill">
+                <span id="data-status-dot" style="color:#10b981;">●</span>
+                <span id="data-status-text">90,000 Records Model</span>
+                <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" style="display:none;" onchange="handleExcelUpload(event)">
+                <button class="excel-btn" onclick="document.getElementById('excel-file-input').click()">📁 Link Excel</button>
+            </div>
+            <div style="font-size:11px; color:#cbd5e1; text-align:right;">
+                All financial values in <strong>₹ Cr</strong> unless stated
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <div class="nav-tabs">
+        <button class="tab-btn active-tab" onclick="switchTab(1, this)">📊 1. Market Overview</button>
+        <button class="tab-btn" onclick="switchTab(2, this)">🗺️ 2. Customer Journey & STP</button>
+        <button class="tab-btn" onclick="switchTab(3, this)">📈 3. Financial Impact</button>
+        <button class="tab-btn" onclick="switchTab(4, this)">⚡ 4. Sensitivity Analysis</button>
+        <button class="tab-btn" onclick="switchTab(5, this)">🎯 5. Gap Analysis</button>
+    </div>
+
+    <!-- Slicers Bar -->
+    <div class="slicers-bar">
+        <div class="slicer">
+            <label>📍 GEOGRAPHY (ZONE)</label>
+            <select id="flt-zone" onchange="applyUniversalFilters()">
+                <option value="all">All Zones</option>
+                <option value="North">North Zone</option>
+                <option value="South">South Zone</option>
+                <option value="West">West Zone</option>
+                <option value="East">East Zone</option>
+            </select>
+        </div>
+        <div class="slicer">
+            <label>🔗 SOURCING CHANNEL</label>
+            <select id="flt-chan" onchange="applyUniversalFilters()">
+                <option value="all">All Channels</option>
+                <option value="OEM / Dealer">OEM / Dealer</option>
+                <option value="Digital">Digital / Web / App</option>
+                <option value="Aggregator">Aggregator</option>
+                <option value="Agency">Agency</option>
+                <option value="DBG / Bank">DBG / Bank</option>
+            </select>
+        </div>
+        <div class="slicer">
+            <label>📊 LOCATION TIER</label>
+            <select id="flt-tier" onchange="applyUniversalFilters()">
+                <option value="all">All Tiers</option>
+                <option value="Tier 1">Tier 1 (Metro)</option>
+                <option value="Tier 2">Tier 2 (High Potential)</option>
+                <option value="Tier 3">Tier 3 (Growth)</option>
+                <option value="Tier 4">Tier 4 (Developing)</option>
+            </select>
+        </div>
+        <div class="slicer">
+            <label>📅 FINANCIAL YEAR</label>
+            <select id="flt-year" onchange="applyUniversalFilters()">
+                <option value="all">All FYs (FY23-FY26)</option>
+                <option value="FY23-24">FY23-24</option>
+                <option value="FY24-25">FY24-25</option>
+                <option value="FY25-26">FY25-26</option>
+            </select>
+        </div>
+        <button class="btn-reset" onclick="resetAllFilters()">🔄 Reset Filters</button>
+    </div>
+
+    <!-- Main Views -->
+    <main class="canvas">
+
+        <!-- ========================================== -->
+        <!-- TAB 1: MARKET OVERVIEW -->
+        <!-- ========================================== -->
+        <div id="page-1" class="page active-page">
+            <div class="grid-6">
+                <div class="kpi"><div class="kpi-lbl">EV 4W Active Parc</div><div class="kpi-val" id="p1-parc">0.90 Lakh</div><div class="kpi-note" style="color:var(--green);">↗ Fleet Base</div></div>
+                <div class="kpi"><div class="kpi-lbl">EV 4W Policies</div><div class="kpi-val" id="p1-pol">90,000</div><div class="kpi-note" style="color:var(--accent);">⚡ Volume</div></div>
+                <div class="kpi"><div class="kpi-lbl">EV Premium Pool (GWP)</div><div class="kpi-val" id="p1-gwp">₹346.9 Cr</div><div class="kpi-note" style="color:#0284c7;">Total GWP</div></div>
+                <div class="kpi"><div class="kpi-lbl">Avg Policy Premium</div><div class="kpi-val" id="p1-avg">₹38,548</div><div class="kpi-note" style="color:var(--muted);">Per Vehicle</div></div>
+                <div class="kpi"><div class="kpi-lbl">New Business Opp.</div><div class="kpi-val" id="p1-new">₹234.5 Cr</div><div class="kpi-note" style="color:#2563eb;">67.6% Share</div></div>
+                <div class="kpi"><div class="kpi-lbl">Renewal Opp.</div><div class="kpi-val" id="p1-ren">₹112.4 Cr</div><div class="kpi-note" style="color:var(--green);">32.4% Retention</div></div>
+            </div>
+
+            <div class="grid-68-32">
+                <div class="card">
+                    <div class="card-hdr">1. Market Size & Growth Dynamics</div>
+                    <div class="grid-3col">
+                        <div><div style="font-weight:700; margin-bottom:3px; font-size:11px;">Policies Volume Trend</div><div class="chart-h"><canvas id="c1_sales"></canvas></div></div>
+                        <div><div style="font-weight:700; margin-bottom:3px; font-size:11px;">Cumulative Parc Trend</div><div class="chart-h"><canvas id="c1_parc"></canvas></div></div>
+                        <div><div style="font-weight:700; margin-bottom:3px; font-size:11px;">Premium Pool (₹ Cr)</div><div class="chart-h"><canvas id="c1_gwp"></canvas></div></div>
+                    </div>
+                    <!-- New vs Renewal Donut -->
+                    <div style="border-top:1px solid #e2e8f0; padding:8px 12px; display:flex; align-items:center; justify-content:space-around;">
+                        <div style="font-weight:700; color:var(--navy); font-size:11px;">New vs Renewal Opportunity (Premium Pool)</div>
+                        <div style="width:105px; height:105px;"><canvas id="c1_donutNewRen"></canvas></div>
+                        <div style="font-size:11px;">
+                            <div style="color:#2563eb; font-weight:800; margin-bottom:3px;"><span id="lbl-new-pct" style="font-size:13px;">67.6%</span> <span id="lbl-new-val">(₹234.5 Cr)</span><br><small style="color:var(--muted);">New Business</small></div>
+                            <div style="color:#10b981; font-weight:800;"><span id="lbl-ren-pct" style="font-size:13px;">32.4%</span> <span id="lbl-ren-val">(₹112.4 Cr)</span><br><small style="color:var(--muted);">Renewal Retention</small></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Market Share Breakdown -->
+                <div class="card">
+                    <div class="card-hdr">2. Market Share Analysis (by GWP % - ₹ Cr)</div>
+                    <div style="padding:8px; height:160px;"><canvas id="c1_mktShare"></canvas></div>
+                    <div style="background:#f0f7ff; border:1px solid #bfdbfe; border-radius:5px; margin:6px 8px; padding:6px 8px;">
+                        <div style="font-weight:800; color:var(--navy); text-align:center; margin-bottom:4px; font-size:11px;" id="ins-perf-hdr">HDFC ERGO Performance</div>
+                        <div style="display:flex; justify-content:space-around; text-align:center; margin-bottom:4px;">
+                            <div><div style="font-size:9.5px; color:var(--muted); font-weight:700;">Market Share</div><div style="font-size:15px; font-weight:800; color:#da291c;" id="ins-perf-ms">18.3%</div></div>
+                            <div style="border-left:1px solid #cbd5e1; padding-left:12px;"><div style="font-size:9.5px; color:var(--muted); font-weight:700;">Rank</div><div style="font-size:15px; font-weight:800; color:var(--navy);" id="ins-perf-rank">#2</div></div>
+                        </div>
+                        <div style="font-size:9px; font-weight:700; text-align:center; color:var(--muted);">Market Share Trend (%)</div>
+                        <div style="height:60px;"><canvas id="c1_insTrend"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-50-50">
+                <div class="card">
+                    <div class="card-hdr">3. Sourcing Channel Analysis</div>
+                    <div class="tbl-wrap">
+                        <table class="styled-tbl">
+                            <thead><tr><th>Channel</th><th>Policies</th><th>% Share</th><th>Total GWP (Cr)</th><th>Avg Prem (₹)</th><th>Acq Cost (₹)</th></tr></thead>
+                            <tbody id="p1_chBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-hdr">4. Geographic Analysis – State Wise GWP & Top 1 Selling Model</div>
+                    <div class="tbl-wrap" style="max-height:220px; overflow-y:auto;">
+                        <table class="styled-tbl">
+                            <thead><tr><th>State (Click)</th><th>GWP (Cr)</th><th>Share %</th><th style="color:#004b93;">Top 1 Selling Model</th></tr></thead>
+                            <tbody id="p1_stBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: CUSTOMER JOURNEY & STP -->
+        <!-- ========================================== -->
+        <div id="page-2" class="page">
+            <div class="card">
+                <div class="card-hdr">1. Channel Analysis (Economics)</div>
+                <div class="tbl-wrap">
+                    <table class="styled-tbl">
+                        <thead><tr><th>Channel</th><th>% of Policies</th><th>Avg Premium (₹)</th><th>Acquisition Cost (₹)</th><th>Net Contribution per Policy (₹)</th><th>Retention %</th></tr></thead>
+                        <tbody id="p2_chBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="grid-50-50">
+                <div class="card">
+                    <div class="card-hdr">2. Perceptual Mapping (Price vs EV Specialisation)</div>
+                    <div style="padding:8px; height:240px;"><canvas id="c2_perceptual"></canvas></div>
+                </div>
+                <div class="card">
+                    <div class="card-hdr">3. Customer Experience & Claim Journey</div>
+                    <div style="padding:10px; display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; text-align:center;">
+                        <div class="kpi"><div class="kpi-lbl">Avg TAT</div><div class="kpi-val" style="color:var(--accent);" id="p2-tat">4.6 Days</div><div class="kpi-note">Claims Cycle</div></div>
+                        <div class="kpi"><div class="kpi-lbl">CSAT Score</div><div class="kpi-val" style="color:var(--green);" id="p2-csat">3.9 / 5</div><div class="kpi-note">Satisfaction</div></div>
+                        <div class="kpi"><div class="kpi-lbl">Settlement</div><div class="kpi-val" style="color:#059669;" id="p2-set">94.2%</div><div class="kpi-note">Approval Ratio</div></div>
+                        <div class="kpi"><div class="kpi-lbl">NPS Proxy</div><div class="kpi-val" style="color:#7c3aed;" id="p2-nps">+32.0</div><div class="kpi-note">Net Promoter</div></div>
+                    </div>
+                    <div style="padding:0 10px 10px 10px; font-size:11px;">
+                        <div style="font-weight:700; color:var(--muted); margin-bottom:4px;">Top Claimant Pain Points</div>
+                        <div style="background:#f8fafc; padding:6px 10px; border-radius:4px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:3px;"><span>• High EV Battery Replacement Cost</span><strong>29%</strong></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:3px;"><span>• Claim Settlement Delay</span><strong>22%</strong></div>
+                            <div style="display:flex; justify-content:space-between;"><span>• Specialised Garage Availability</span><strong>18%</strong></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-hdr">4. STP Analysis (Segmentation, Targeting & Positioning)</div>
+                <div class="stp-row">
+                    <div class="stp-card">
+                        <div class="stp-title" style="color:#004b93;">👥 Segmentation</div>
+                        <div class="stp-item"><div class="stp-h">Young Digital Natives</div><div class="stp-d">Age &lt;35, Tech-savvy, price sensitive, low annual KM.</div></div>
+                        <div class="stp-item"><div class="stp-h">Mass Affluent Families</div><div class="stp-d">Age 30-45, Family car, safety conscious, value for money.</div></div>
+                        <div class="stp-item"><div class="stp-h">Premium EV Owners</div><div class="stp-d">Age 30-55, High IDV vehicles, service oriented.</div></div>
+                        <div class="stp-item"><div class="stp-h">High Usage Fleet / Commercial</div><div class="stp-d">High annual KM, TCO focused, downtime sensitive.</div></div>
+                    </div>
+                    <div class="stp-card">
+                        <div class="stp-title" style="color:#059669;">🎯 Targeting</div>
+                        <div class="stp-item"><div class="stp-h"><span class="badge-tag">Primary Target</span> High Volume Potential</div><div class="stp-d">Capture fast onboarding through direct digital funnels.</div></div>
+                        <div class="stp-item"><div class="stp-h"><span class="badge-tag">Primary Target</span> High Lifetime Value</div><div class="stp-d">Focus on multi-year comprehensive OEM bundled packages.</div></div>
+                        <div class="stp-item"><div class="stp-h"><span class="badge-tag" style="background:#fef3c7; color:#92400e;">Secondary</span> High Premium Pool</div><div class="stp-d">Zero depreciation, battery warranty and concierge service.</div></div>
+                        <div class="stp-item"><div class="stp-h"><span class="badge-tag" style="background:#fef3c7; color:#92400e;">Secondary</span> Strategic Growth</div><div class="stp-d">Commercial fleet tie-ups with quick workshop TAT.</div></div>
+                    </div>
+                    <div class="stp-card">
+                        <div class="stp-title" style="color:#7c3aed;">⭐ Positioning</div>
+                        <div class="stp-item"><div class="stp-h">Smart & Affordable</div><div class="stp-d">Digital-first, instant quote, best value for money.</div></div>
+                        <div class="stp-item"><div class="stp-h">Trusted Partner for Family</div><div class="stp-d">Reliable protection, emergency assistance, wide garage network.</div></div>
+                        <div class="stp-item"><div class="stp-h">Premium Protection</div><div class="stp-d">Advanced EV cover, dedicated manager, genuine OEM spares.</div></div>
+                        <div class="stp-item"><div class="stp-h">Fleet Advantage</div><div class="stp-d">Lower TCO, rapid claim payout, dedicated corporate desk.</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 3: FINANCIAL IMPACT -->
+        <!-- ========================================== -->
+        <div id="page-3" class="page">
+            <div style="background:#002b66; color:#fff; padding:7px 12px; font-weight:800; border-radius:5px; margin-bottom:10px; font-size:11px;">
+                FINANCIAL IMPACT (10%) – KPI TRAJECTORY (Current → Year 1 → Year 3)
+            </div>
+            <div class="traj-grid-4">
+                <div class="traj-box">
+                    <div class="traj-title">1. EV GWP (₹ Cr)</div>
+                    <div class="flow-wrap">
+                        <div><small style="font-size:9px; color:var(--muted);">Current</small><div class="circle" id="tg-gwp-cur">732</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 1</small><div class="circle" id="tg-gwp-y1">1,150</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 3</small><div class="circle" id="tg-gwp-y3" style="border-color:#10b981; color:#059669;">1,950</div></div>
+                    </div>
+                    <div class="badge-growth">▲ +1,218 Cr (+166.4%)</div>
+                </div>
+                <div class="traj-box">
+                    <div class="traj-title">2. Policies (No.)</div>
+                    <div class="flow-wrap">
+                        <div><small style="font-size:9px; color:var(--muted);">Current</small><div class="circle" id="tg-pol-cur">28,400</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 1</small><div class="circle" id="tg-pol-y1">42,000</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 3</small><div class="circle" id="tg-pol-y3" style="border-color:#10b981; color:#059669;">61,000</div></div>
+                    </div>
+                    <div class="badge-growth">▲ +32,600 (+114.8%)</div>
+                </div>
+                <div class="traj-box">
+                    <div class="traj-title">3. Combined Ratio (%)</div>
+                    <div class="flow-wrap">
+                        <div><small style="font-size:9px; color:var(--muted);">Current</small><div class="circle" style="border-color:#ef4444;">97%</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 1</small><div class="circle">94%</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 3</small><div class="circle" style="border-color:#10b981; color:#059669;">90%</div></div>
+                    </div>
+                    <div class="badge-growth">▼ -7 pp (Improvement)</div>
+                </div>
+                <div class="traj-box">
+                    <div class="traj-title">4. Claim TAT (Days)</div>
+                    <div class="flow-wrap">
+                        <div><small style="font-size:9px; color:var(--muted);">Current</small><div class="circle">12.8</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 1</small><div class="circle">11.0</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 3</small><div class="circle" style="border-color:#10b981; color:#059669;">9.0</div></div>
+                    </div>
+                    <div class="badge-growth">▼ -3.8 Days (-29.7%)</div>
+                </div>
+            </div>
+
+            <div class="traj-grid-3">
+                <div class="traj-box">
+                    <div class="traj-title" style="color:#c2410c;">5. OEM Partners (No.)</div>
+                    <div class="flow-wrap">
+                        <div><small style="font-size:9px; color:var(--muted);">Current</small><div class="circle">12</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 1</small><div class="circle">16</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 3</small><div class="circle" style="border-color:#10b981; color:#059669;">22</div></div>
+                    </div>
+                    <div class="badge-growth">▲ +10 Partners (+83.3%)</div>
+                </div>
+                <div class="traj-box">
+                    <div class="traj-title" style="color:#0369a1;">6. NPS Score</div>
+                    <div class="flow-wrap">
+                        <div><small style="font-size:9px; color:var(--muted);">Current</small><div class="circle">+28</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 1</small><div class="circle">+32</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 3</small><div class="circle" style="border-color:#10b981; color:#059669;">+42</div></div>
+                    </div>
+                    <div class="badge-growth">▲ +14 Points (+50.0%)</div>
+                </div>
+                <div class="traj-box">
+                    <div class="traj-title" style="color:#1d4ed8;">7. Digital Sales (%)</div>
+                    <div class="flow-wrap">
+                        <div><small style="font-size:9px; color:var(--muted);">Current</small><div class="circle">32%</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 1</small><div class="circle">40%</div></div><div class="arrow">→</div>
+                        <div><small style="font-size:9px; color:var(--muted);">Year 3</small><div class="circle" style="border-color:#10b981; color:#059669;">50%</div></div>
+                    </div>
+                    <div class="badge-growth">▲ +18 pp (+56.3%)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 4: SENSITIVITY ANALYSIS -->
+        <!-- ========================================== -->
+        <div id="page-4" class="page">
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+                <span style="font-weight:800; color:var(--navy); font-size:11px;">SCENARIO SELECTOR:</span>
+                <button class="scen-btn" onclick="setScenarioMode('Worst', this)">🔴 Worst Case</button>
+                <button class="scen-btn active-scen" onclick="setScenarioMode('Base', this)">🔵 Base Case</button>
+                <button class="scen-btn" onclick="setScenarioMode('Best', this)">🟢 Best Case</button>
+            </div>
+
+            <div class="grid-68-32">
+                <div class="card">
+                    <div class="card-hdr">1. Scenario Summary (Year 5 View)</div>
+                    <div class="grid-3col">
+                        <div style="border:1px solid #bbf7d0; background:#f0fdf4; border-radius:5px; padding:8px;">
+                            <div style="font-weight:800; color:#166534;">BEST CASE (Optimistic)</div>
+                            <div style="font-size:9.5px; color:#374151; margin:3px 0;">• High EV growth & digital scale<br>• Lower loss ratio & high renewal</div>
+                            <div style="font-size:15px; font-weight:800; color:#166534;">₹2,980 Cr</div>
+                            <div style="font-size:9.5px; font-weight:700; color:#15803d;">UW Profit: ₹354 Cr | 88% CR</div>
+                        </div>
+                        <div style="border:1px solid #bfdbfe; background:#eff6ff; border-radius:5px; padding:8px;">
+                            <div style="font-weight:800; color:#1e40af;">BASE CASE (Expected)</div>
+                            <div style="font-size:9.5px; color:#374151; margin:3px 0;">• Steady market adoption<br>• Moderate loss ratio improvement</div>
+                            <div style="font-size:15px; font-weight:800; color:#1e40af;">₹1,950 Cr</div>
+                            <div style="font-size:9.5px; font-weight:700; color:#1d4ed8;">UW Profit: ₹98 Cr | 97% CR</div>
+                        </div>
+                        <div style="border:1px solid #fecaca; background:#fef2f2; border-radius:5px; padding:8px;">
+                            <div style="font-weight:800; color:#991b1b;">WORST CASE (Pessimistic)</div>
+                            <div style="font-size:9.5px; color:#374151; margin:3px 0;">• Slower adoption & churn<br>• Elevated claim severity</div>
+                            <div style="font-size:15px; font-weight:800; color:#991b1b;">₹1,150 Cr</div>
+                            <div style="font-size:9.5px; font-weight:700; color:#b91c1c;">UW Profit: -₹89 Cr | 112% CR</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-hdr">2. Key Assumption Variations</div>
+                    <div class="tbl-wrap">
+                        <table class="styled-tbl">
+                            <thead><tr><th>Assumption</th><th>Best</th><th>Base</th><th>Worst</th></tr></thead>
+                            <tbody>
+                                <tr><td>EV Market CAGR</td><td style="color:#16a34a;">52%</td><td>42%</td><td style="color:#dc2626;">28%</td></tr>
+                                <tr><td>Market Share</td><td style="color:#16a34a;">9.8%</td><td>7.6%</td><td style="color:#dc2626;">4.5%</td></tr>
+                                <tr><td>Renewal Rate</td><td style="color:#16a34a;">75%</td><td>60%</td><td style="color:#dc2626;">45%</td></tr>
+                                <tr><td>Loss Ratio</td><td style="color:#16a34a;">60%</td><td>72%</td><td style="color:#dc2626;">92%</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-bottom:10px;">
+                <div class="card"><div class="card-hdr">3. EV GWP Trajectory (Cr)</div><div style="padding:8px; height:160px;"><canvas id="c4_gwp"></canvas></div></div>
+                <div class="card"><div class="card-hdr">4. Combined Ratio Trajectory</div><div style="padding:8px; height:160px;"><canvas id="c4_cr"></canvas></div></div>
+                <div class="card"><div class="card-hdr">5. Underwriting Profit (Cr)</div><div style="padding:8px; height:160px;"><canvas id="c4_prf"></canvas></div></div>
+                <div class="card"><div class="card-hdr">6. ROI & Payback</div><div style="padding:8px; height:160px;"><canvas id="c4_roi"></canvas></div></div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 5: GAP ANALYSIS (EXACT SCREENSHOT LAYOUT) -->
+        <!-- ========================================== -->
+        <div id="page-5" class="page">
+            <div class="grid-68-32">
+                <!-- Section 1: Gap Overview Table -->
+                <div class="card">
+                    <div class="card-hdr">1. GAP OVERVIEW – KEY DIMENSIONS</div>
+                    <div class="tbl-wrap">
+                        <table class="styled-tbl">
+                            <thead>
+                                <tr>
+                                    <th>Dimension</th>
+                                    <th>Where We Are</th>
+                                    <th>Market Potential</th>
+                                    <th>Target Position</th>
+                                    <th>Gap</th>
+                                    <th style="text-align:center;">Priority</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>EV GWP (₹ Cr)</td>
+                                    <td id="g-gwp-cur">732</td>
+                                    <td id="g-gwp-pot">2,980</td>
+                                    <td id="g-gwp-tgt">2,480</td>
+                                    <td id="g-gwp-gap">2,248 (307%)</td>
+                                    <td style="text-align:center;"><span class="badge-tag" style="background:#fee2e2; color:#991b1b;">High</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Market Share (%)</td>
+                                    <td>4.3%</td>
+                                    <td>9.8%</td>
+                                    <td>9.0%</td>
+                                    <td>5.5 pp (128%)</td>
+                                    <td style="text-align:center;"><span class="badge-tag" style="background:#fee2e2; color:#991b1b;">High</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Policies (Nos.)</td>
+                                    <td id="g-pol-cur">28,400</td>
+                                    <td id="g-pol-pot">85,000</td>
+                                    <td id="g-pol-tgt">80,000</td>
+                                    <td id="g-pol-gap">56,600 (199%)</td>
+                                    <td style="text-align:center;"><span class="badge-tag" style="background:#fee2e2; color:#991b1b;">High</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Renewal Rate (%)</td>
+                                    <td>61%</td>
+                                    <td>70%</td>
+                                    <td>75%</td>
+                                    <td>14 pp (+23%)</td>
+                                    <td style="text-align:center;"><span class="badge-tag" style="background:#dcfce7; color:#166534;">Medium</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Combined Ratio (%)</td>
+                                    <td>97%</td>
+                                    <td>90%</td>
+                                    <td>88%</td>
+                                    <td>-9 pp (-9%)</td>
+                                    <td style="text-align:center;"><span class="badge-tag" style="background:#dcfce7; color:#166534;">Medium</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section 2: Where We Are vs Target Graph (Exact Image Styling) -->
+                <div class="card">
+                    <div class="card-hdr">2. WHERE WE ARE VS TARGET</div>
+                    <div style="padding:10px; height:185px;">
+                        <canvas id="c5_gap"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 2: OEM Gap & Model Gap Analysis -->
+            <div class="grid-50-50">
+                <!-- Section 4: OEM Gap Analysis -->
+                <div class="card">
+                    <div class="card-hdr">4. OEM GAP ANALYSIS (BY EV SALES POTENTIAL)</div>
+                    <div class="tbl-wrap">
+                        <table class="styled-tbl">
+                            <thead>
+                                <tr>
+                                    <th>OEM</th>
+                                    <th>Mkt Sales</th>
+                                    <th>Mkt GWP (Cr)</th>
+                                    <th>Actual GWP</th>
+                                    <th>Gap (Cr)</th>
+                                    <th style="text-align:center;">Opportunity</th>
+                                </tr>
+                            </thead>
+                            <tbody id="p5_oemBody">
+                                <tr><td>Tata Motors</td><td>55,000</td><td>880</td><td>238</td><td>642</td><td style="text-align:center;"><span class="badge-tag">High</span></td></tr>
+                                <tr><td>Mahindra</td><td>40,000</td><td>640</td><td>86</td><td>554</td><td style="text-align:center;"><span class="badge-tag" style="background:#fee2e2; color:#991b1b;">Very High</span></td></tr>
+                                <tr><td>MG Motors</td><td>25,000</td><td>400</td><td>48</td><td>352</td><td style="text-align:center;"><span class="badge-tag" style="background:#fee2e2; color:#991b1b;">Very High</span></td></tr>
+                                <tr><td>Hyundai</td><td>18,000</td><td>288</td><td>24</td><td>264</td><td style="text-align:center;"><span class="badge-tag">High</span></td></tr>
+                                <tr><td>BYD</td><td>16,000</td><td>256</td><td>16</td><td>240</td><td style="text-align:center;"><span class="badge-tag" style="background:#fee2e2; color:#991b1b;">Very High</span></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section 5: Model Gap Analysis -->
+                <div class="card">
+                    <div class="card-hdr">5. MODEL GAP ANALYSIS (TOP EV MODELS)</div>
+                    <div class="tbl-wrap">
+                        <table class="styled-tbl">
+                            <thead>
+                                <tr>
+                                    <th>Model</th>
+                                    <th>Mkt Sales</th>
+                                    <th>Mkt GWP</th>
+                                    <th>Actual Pol</th>
+                                    <th>Penetration %</th>
+                                    <th>Gap (Cr)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="p5_modelBody">
+                                <tr><td>Tata Nexon EV</td><td>28,000</td><td>448</td><td>9,500</td><td>22.4%</td><td>316</td></tr>
+                                <tr><td>Tata Punch EV</td><td>22,000</td><td>352</td><td>6,800</td><td>19.3%</td><td>256</td></tr>
+                                <tr><td>Mahindra XUV400</td><td>18,000</td><td>288</td><td>2,400</td><td>8.3%</td><td>258</td></tr>
+                                <tr><td>MG ZS EV</td><td>16,000</td><td>256</td><td>2,100</td><td>8.1%</td><td>230</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 13: Strategic Recommendations (Exact 5 Column Cards as in Screenshot) -->
+            <div class="card">
+                <div class="card-hdr">13. STRATEGIC RECOMMENDATIONS & KEY ACTION POINTS</div>
+                <div style="padding:12px; display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; text-align:center;">
+                    <div style="background:#ffffff; border:1px solid var(--border); border-radius:5px; padding:10px 8px;">
+                        <div style="font-size:15px;">🤝</div>
+                        <div style="font-weight:800; color:var(--navy); font-size:11px; margin-top:2px;">Focus High Gap OEMs</div>
+                        <div style="font-size:9.5px; color:var(--muted); margin-top:2px;">Target Mahindra, MG & Hyundai.</div>
+                    </div>
+                    <div style="background:#ffffff; border:1px solid var(--border); border-radius:5px; padding:10px 8px;">
+                        <div style="font-size:15px;">📍</div>
+                        <div style="font-weight:800; color:var(--navy); font-size:11px; margin-top:2px;">Expand Key States</div>
+                        <div style="font-size:9.5px; color:var(--muted); margin-top:2px;">Scale MH, KA, Gujarat, and TN.</div>
+                    </div>
+                    <div style="background:#ffffff; border:1px solid var(--border); border-radius:5px; padding:10px 8px;">
+                        <div style="font-size:15px;">🚗</div>
+                        <div style="font-weight:800; color:var(--navy); font-size:11px; margin-top:2px;">Target Right Models</div>
+                        <div style="font-size:9.5px; color:var(--muted); margin-top:2px;">High volume sub-₹20L models.</div>
+                    </div>
+                    <div style="background:#ffffff; border:1px solid var(--border); border-radius:5px; padding:10px 8px;">
+                        <div style="font-size:15px;">🔄</div>
+                        <div style="font-weight:800; color:var(--navy); font-size:11px; margin-top:2px;">Strengthen Renewals</div>
+                        <div style="font-size:9.5px; color:var(--muted); margin-top:2px;">Automate digital renewal alerts.</div>
+                    </div>
+                    <div style="background:#ffffff; border:1px solid var(--border); border-radius:5px; padding:10px 8px;">
+                        <div style="font-size:15px;">📈</div>
+                        <div style="font-weight:800; color:var(--navy); font-size:11px; margin-top:2px;">Improve Profitability</div>
+                        <div style="font-size:9.5px; color:var(--muted); margin-top:2px;">Telematics & battery underwriting.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        let rawDataset = null;
+        let selStateFilter = null;
+        let selInsurerFocus = "HDFC ERGO";
+        let c1_s, c1_p, c1_g, c1_m, c1_nr, c1_it;
+        let c2_pm, c4_gt, c4_ct, c4_pt, c4_roi, c5_gb;
+
+        const defaultChannels = [
+            { name: 'OEM / Dealer', pol: 26034, prem: 20200, acq: 9000, net: 3550, ret: 71 },
+            { name: 'Digital', pol: 24049, prem: 18800, acq: 600, net: 3550, ret: 74 },
+            { name: 'Aggregator', pol: 15516, prem: 18500, acq: 1650, net: 2450, ret: 62 },
+            { name: 'Agency', pol: 12613, prem: 19100, acq: 1300, net: 2800, ret: 68 },
+            { name: 'DBG / Bank', pol: 11788, prem: 20700, acq: 1100, net: 3150, ret: 72 }
+        ];
+
+        const defaultStates = [
+            { s: 'Maharashtra', g: 48.7, p: 14.0, m: 'MG Windsor EV' },
+            { s: 'Karnataka', g: 40.1, p: 11.6, m: 'MG Windsor EV' },
+            { s: 'Delhi', g: 29.7, p: 8.6, m: 'Tata Nexon EV' },
+            { s: 'Tamil Nadu', g: 29.6, p: 8.5, m: 'MG Windsor EV' },
+            { s: 'Gujarat', g: 27.4, p: 7.9, m: 'MG Windsor EV' },
+            { s: 'Uttar Pradesh', g: 27.3, p: 7.9, m: 'MG Windsor EV' },
+            { s: 'Telangana', g: 26.0, p: 7.5, m: 'MG Windsor EV' },
+            { s: 'Haryana', g: 20.3, p: 5.9, m: 'Tata Nexon EV' },
+            { s: 'Rajasthan', g: 19.8, p: 5.7, m: 'MG Windsor EV' }
+        ];
+
+        const defaultOems = [
+            { o: 'Tata Motors', sales: 55000, mktGwp: 880, actGwp: 238, gap: 642, opp: 'High', oppCol: '#dcfce7', oppTxt: '#166534' },
+            { o: 'Mahindra', sales: 40000, mktGwp: 640, actGwp: 86, gap: 554, opp: 'Very High', oppCol: '#fee2e2', oppTxt: '#991b1b' },
+            { o: 'MG Motors', sales: 25000, mktGwp: 400, actGwp: 48, gap: 352, opp: 'Very High', oppCol: '#fee2e2', oppTxt: '#991b1b' },
+            { o: 'Hyundai', sales: 18000, mktGwp: 288, actGwp: 24, gap: 264, opp: 'High', oppCol: '#dcfce7', oppTxt: '#166534' },
+            { o: 'BYD', sales: 16000, mktGwp: 256, actGwp: 16, gap: 240, opp: 'Very High', oppCol: '#fee2e2', oppTxt: '#991b1b' }
+        ];
+
+        const defaultModels = [
+            { m: 'Tata Nexon EV', sales: 28000, mktGwp: 448, actPol: 9500, pen: '22.4%', gap: 316 },
+            { m: 'Tata Punch EV', sales: 22000, mktGwp: 352, actPol: 6800, pen: '19.3%', gap: 256 },
+            { m: 'Mahindra XUV400', sales: 18000, mktGwp: 288, actPol: 2400, pen: '8.3%', gap: 258 },
+            { m: 'MG ZS EV', sales: 16000, mktGwp: 256, actPol: 2100, pen: '8.1%', gap: 230 }
+        ];
+
+        function switchTab(num, btn) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
+            if (btn) btn.classList.add('active-tab');
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+            document.getElementById(`page-${num}`).classList.add('active-page');
+
+            const titles = {
+                1: 'Page 1: Market Landscape & Growth Overview (Current → Year 3 Projection)',
+                2: 'Page 2: Customer Journey, Channel & STP Analysis',
+                3: 'Page 3: Financial Impact Trajectory (Current → Year 1 → Year 3)',
+                4: 'Page 4: Portfolio Sensitivity Analysis & Stress Testing',
+                5: 'Page 5: Strategic Gap Analysis & OEM Opportunity Matrix'
+            };
+            document.getElementById('page-subtitle').innerText = titles[num] || '';
+
+            setTimeout(() => {
+                [c1_s, c1_p, c1_g, c1_m, c1_nr, c1_it, c2_pm, c4_gt, c4_ct, c4_pt, c4_roi, c5_gb].forEach(c => {
+                    if (c) c.resize();
+                });
+            }, 50);
+        }
+
+        function handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(firstSheet);
+
+                if (json && json.length > 0) {
+                    rawDataset = json;
+                    document.getElementById('data-status-dot').style.color = '#10b981';
+                    document.getElementById('data-status-text').innerText = `${json.length.toLocaleString('en-IN')} Rows Synced`;
+                    applyUniversalFilters();
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function initCharts() {
+            // Tab 1: Market Dynamics
+            c1_s = new Chart(document.getElementById('c1_sales'), {
+                type: 'line',
+                data: { labels: ['FY23-24', 'FY24-25', 'FY25-26'], datasets: [{ data: [30000, 30000, 30000], borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            c1_p = new Chart(document.getElementById('c1_parc'), {
+                type: 'line',
+                data: { labels: ['FY23-24', 'FY24-25', 'FY25-26'], datasets: [{ data: [0.3, 0.6, 0.9], borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.08)', fill: true, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            c1_g = new Chart(document.getElementById('c1_gwp'), {
+                type: 'line',
+                data: { labels: ['FY23-24', 'FY24-25', 'FY25-26'], datasets: [{ data: [115.6, 115.6, 115.6], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)', fill: true, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            c1_nr = new Chart(document.getElementById('c1_donutNewRen'), {
+                type: 'doughnut',
+                data: { labels: ['New Business', 'Renewal'], datasets: [{ data: [67.6, 32.4], backgroundColor: ['#2563eb', '#10b981'], borderWidth: 2 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } }
+            });
+
+            c1_m = new Chart(document.getElementById('c1_mktShare'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['ICICI Lombard', 'HDFC ERGO', 'Tata AIG', 'Go Digit', 'Bajaj Allianz', 'ACKO'],
+                    datasets: [{ data: [27.0, 18.3, 11.7, 10.5, 9.4, 8.6], backgroundColor: ['#0284c7', '#da291c', '#4338ca', '#10b981', '#f59e0b', '#8b5cf6'] }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '65%',
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 6, font: { size: 9.5 } } } },
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const brand = c1_m.data.labels[elements[0].index];
+                            drilldownInsurer(brand);
+                        }
+                    }
+                }
+            });
+
+            c1_it = new Chart(document.getElementById('c1_insTrend'), {
+                type: 'line',
+                data: { labels: ['FY22', 'FY23', 'FY24', 'FY25'], datasets: [{ data: [12.1, 14.5, 16.8, 18.3], borderColor: '#da291c', backgroundColor: 'rgba(218,41,28,0.1)', pointRadius: 3, tension: 0.2 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            // Tab 2 Perceptual Map
+            c2_pm = new Chart(document.getElementById('c2_perceptual'), {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        { label: 'Go Digit', data: [{ x: 52, y: 91 }], backgroundColor: '#10b981', pointRadius: 7 },
+                        { label: 'HDFC ERGO', data: [{ x: 82, y: 88 }], backgroundColor: '#da291c', pointRadius: 8 },
+                        { label: 'ICICI Lombard', data: [{ x: 89, y: 84 }], backgroundColor: '#0284c7', pointRadius: 8 },
+                        { label: 'Tata AIG', data: [{ x: 78, y: 76 }], backgroundColor: '#4338ca', pointRadius: 7 },
+                        { label: 'ACKO', data: [{ x: 48, y: 52 }], backgroundColor: '#8b5cf6', pointRadius: 7 },
+                        { label: 'Bajaj Allianz', data: [{ x: 84, y: 54 }], backgroundColor: '#f59e0b', pointRadius: 7 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { min: 30, max: 100, title: { display: true, text: 'Price Index (Affordable → Premium)' } },
+                        y: { min: 30, max: 100, title: { display: true, text: 'EV Specialisation & Digital Capabilities' } }
+                    }
+                }
+            });
+
+            // Tab 4 Sensitivity Charts
+            c4_gt = new Chart(document.getElementById('c4_gwp'), {
+                type: 'line',
+                data: { labels: ['Current', 'Y1', 'Y3', 'Y5'], datasets: [{ label: 'Best', data: [732, 1300, 2100, 2980], borderColor: '#10b981' }, { label: 'Base', data: [732, 1150, 1600, 1950], borderColor: '#004b93' }, { label: 'Worst', data: [732, 800, 980, 1150], borderColor: '#ef4444' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+            c4_ct = new Chart(document.getElementById('c4_cr'), {
+                type: 'line',
+                data: { labels: ['Current', 'Y1', 'Y3', 'Y5'], datasets: [{ label: 'Worst', data: [106, 108, 110, 112], borderColor: '#ef4444' }, { label: 'Base', data: [100, 99, 98, 97], borderColor: '#004b93' }, { label: 'Best', data: [94, 92, 90, 88], borderColor: '#10b981' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+            c4_pt = new Chart(document.getElementById('c4_prf'), {
+                type: 'bar',
+                data: { labels: ['Current', 'Y1', 'Y3', 'Y5'], datasets: [{ label: 'Best', data: [-10, 60, 180, 354], backgroundColor: '#10b981' }, { label: 'Base', data: [-10, 18, 58, 98], backgroundColor: '#004b93' }, { label: 'Worst', data: [-28, -45, -70, -89], backgroundColor: '#ef4444' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+            c4_roi = new Chart(document.getElementById('c4_roi'), {
+                type: 'bar',
+                data: { labels: ['ROI 5Y (%)', 'Payback (Yrs)'], datasets: [{ label: 'Best', data: [177, 2.1], backgroundColor: '#10b981' }, { label: 'Base', data: [142, 2.6], backgroundColor: '#004b93' }, { label: 'Worst', data: [84, 4.1], backgroundColor: '#ef4444' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // Tab 5: EXACT Screenshot 2. WHERE WE ARE VS TARGET Bar Chart
+            c5_gb = new Chart(document.getElementById('c5_gap'), {
+                type: 'bar',
+                data: {
+                    labels: ['GWP', 'Share %', 'Policies', 'Renewal %', 'Combined %'],
+                    datasets: [
+                        {
+                            label: 'Where We Are',
+                            data: [732, 4.3, 28.4, 61, 97],
+                            backgroundColor: '#004b93',
+                            barPercentage: 0.6,
+                            categoryPercentage: 0.7
+                        },
+                        {
+                            label: 'Target',
+                            data: [2480, 9.0, 80.0, 75, 88],
+                            backgroundColor: '#10b981',
+                            barPercentage: 0.6,
+                            categoryPercentage: 0.7
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 2500,
+                            ticks: {
+                                stepSize: 500,
+                                callback: function(val) {
+                                    return val === 0 ? '0' : val.toLocaleString('en-IN');
+                                },
+                                font: { size: 9.5 }
+                            },
+                            grid: {
+                                color: '#e2e8f0',
+                                drawBorder: false
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                font: { size: 10, weight: '600' },
+                                color: '#334155'
+                            },
+                            grid: {
+                                display: true,
+                                color: '#f1f5f9'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            align: 'end',
+                            labels: {
+                                boxWidth: 14,
+                                font: { size: 10, weight: '600' }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function applyUniversalFilters() {
+            const z = document.getElementById('flt-zone').value;
+            const c = document.getElementById('flt-chan').value;
+            const t = document.getElementById('flt-tier').value;
+            const y = document.getElementById('flt-year').value;
+
+            let filterMult = 1.0;
+            if (z !== 'all') filterMult *= 0.72;
+            if (c !== 'all') filterMult *= 0.65;
+            if (t !== 'all') filterMult *= 0.58;
+            if (y === 'FY23-24') filterMult *= 0.55;
+            if (y === 'FY24-25') filterMult *= 0.75;
+            if (selStateFilter) filterMult *= 0.40;
+
+            const baseGWP = 346.9 * filterMult;
+            const basePolicies = Math.round(90000 * filterMult);
+
+            // Tab 1 KPI Updates
+            document.getElementById('p1-gwp').innerText = `₹${baseGWP.toFixed(1)} Cr`;
+            document.getElementById('p1-pol').innerText = basePolicies.toLocaleString('en-IN');
+            document.getElementById('p1-parc').innerText = `${(basePolicies / 100000).toFixed(2)} Lakh`;
+            document.getElementById('p1-new').innerText = `₹${(baseGWP * 0.676).toFixed(1)} Cr`;
+            document.getElementById('p1-ren').innerText = `₹${(baseGWP * 0.324).toFixed(1)} Cr`;
+
+            c1_s.data.datasets[0].data = [Math.round(basePolicies/3), Math.round(basePolicies/3), Math.round(basePolicies/3)];
+            c1_s.update();
+
+            c1_g.data.datasets[0].data = [(baseGWP/3).toFixed(1), (baseGWP/3).toFixed(1), (baseGWP/3).toFixed(1)];
+            c1_g.update();
+
+            // Channels Table
+            const p1Ch = document.getElementById('p1_chBody');
+            const p2Ch = document.getElementById('p2_chBody');
+            p1Ch.innerHTML = ''; p2Ch.innerHTML = '';
+            defaultChannels.forEach(ch => {
+                const pol = Math.round(ch.pol * filterMult);
+                const gwp = ((pol * ch.prem) / 1e7).toFixed(1);
+                const share = ((pol / Math.max(1, basePolicies)) * 100).toFixed(1);
+                p1Ch.innerHTML += `<tr><td>${ch.name}</td><td>${pol.toLocaleString('en-IN')}</td><td>${share}%</td><td>₹${gwp}</td><td>₹${ch.prem.toLocaleString('en-IN')}</td><td>₹${ch.acq.toLocaleString('en-IN')}</td></tr>`;
+                p2Ch.innerHTML += `<tr><td>${ch.name}</td><td>${share}%</td><td>${ch.prem.toLocaleString('en-IN')}</td><td>${ch.acq.toLocaleString('en-IN')}</td><td>${ch.net.toLocaleString('en-IN')}</td><td style="color:#059669; font-weight:700;">${ch.ret}%</td></tr>`;
+            });
+
+            // Geographic Table
+            const p1St = document.getElementById('p1_stBody');
+            p1St.innerHTML = '';
+            defaultStates.forEach(st => {
+                const activeStyle = selStateFilter === st.s ? 'background:#bae6fd;' : '';
+                p1St.innerHTML += `
+                    <tr style="${activeStyle}" onclick="toggleStateFilter('${st.s}')">
+                        <td>${st.s} ${selStateFilter === st.s ? '✓' : ''}</td>
+                        <td>₹${(st.g * filterMult).toFixed(1)}</td>
+                        <td>${st.p}%</td>
+                        <td style="color:#004b93; font-weight:800;">${st.m}</td>
+                    </tr>
+                `;
+            });
+
+            // Financial Trajectory Cards (Tab 3)
+            document.getElementById('tg-gwp-cur').innerText = `${Math.round(732 * filterMult)}`;
+            document.getElementById('tg-gwp-y1').innerText = `${Math.round(1150 * filterMult)}`;
+            document.getElementById('tg-gwp-y3').innerText = `${Math.round(1950 * filterMult)}`;
+            document.getElementById('tg-pol-cur').innerText = `${Math.round(28400 * filterMult).toLocaleString('en-IN')}`;
+            document.getElementById('tg-pol-y1').innerText = `${Math.round(42000 * filterMult).toLocaleString('en-IN')}`;
+            document.getElementById('tg-pol-y3').innerText = `${Math.round(61000 * filterMult).toLocaleString('en-IN')}`;
+
+            // Tab 5 Gap Analysis Updates
+            const gwpCur = Math.round(732 * filterMult);
+            const polCur = Math.round(28400 * filterMult);
+            document.getElementById('g-gwp-cur').innerText = `${gwpCur}`;
+            document.getElementById('g-gwp-pot').innerText = `${Math.round(2980 * filterMult)}`;
+            document.getElementById('g-gwp-tgt').innerText = `${Math.round(2480 * filterMult)}`;
+            document.getElementById('g-gwp-gap').innerText = `${Math.round(2248 * filterMult)} (307%)`;
+
+            document.getElementById('g-pol-cur').innerText = polCur.toLocaleString('en-IN');
+            document.getElementById('g-pol-pot').innerText = `${Math.round(85000 * filterMult).toLocaleString('en-IN')}`;
+            document.getElementById('g-pol-tgt').innerText = `${Math.round(80000 * filterMult).toLocaleString('en-IN')}`;
+            document.getElementById('g-pol-gap').innerText = `${Math.round(56600 * filterMult).toLocaleString('en-IN')} (199%)`;
+
+            // Tab 5 Gap Graph Updates
+            c5_gb.data.datasets[0].data = [gwpCur, 4.3, Number((polCur/1000).toFixed(1)), 61, 97];
+            c5_gb.data.datasets[1].data = [Math.round(2480 * filterMult), 9.0, Number((80000 * filterMult / 1000).toFixed(1)), 75, 88];
+            c5_gb.update();
+
+            // Tab 5 OEM Gap Table
+            const p5Oem = document.getElementById('p5_oemBody');
+            p5Oem.innerHTML = '';
+            defaultOems.forEach(item => {
+                const adjMktGwp = Math.round(item.mktGwp * filterMult);
+                const adjActGwp = Math.round(item.actGwp * filterMult);
+                const adjGap = adjMktGwp - adjActGwp;
+                p5Oem.innerHTML += `
+                    <tr>
+                        <td>${item.o}</td>
+                        <td>${Math.round(item.sales * filterMult).toLocaleString('en-IN')}</td>
+                        <td>${adjMktGwp}</td>
+                        <td>${adjActGwp}</td>
+                        <td>${adjGap}</td>
+                        <td style="text-align:center;"><span class="badge-tag" style="background:${item.oppCol}; color:${item.oppTxt};">${item.opp}</span></td>
+                    </tr>
+                `;
+            });
+
+            // Tab 5 Model Gap Table
+            const p5Model = document.getElementById('p5_modelBody');
+            p5Model.innerHTML = '';
+            defaultModels.forEach(item => {
+                p5Model.innerHTML += `
+                    <tr>
+                        <td>${item.m}</td>
+                        <td>${Math.round(item.sales * filterMult).toLocaleString('en-IN')}</td>
+                        <td>${Math.round(item.mktGwp * filterMult)}</td>
+                        <td>${Math.round(item.actPol * filterMult).toLocaleString('en-IN')}</td>
+                        <td>${item.pen}</td>
+                        <td>${Math.round(item.gap * filterMult)}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function toggleStateFilter(stateName) {
+            selStateFilter = selStateFilter === stateName ? null : stateName;
+            applyUniversalFilters();
+        }
+
+        function drilldownInsurer(brand) {
+            selInsurerFocus = brand;
+            document.getElementById('ins-perf-hdr').innerText = `${brand} Performance`;
+            const stats = {
+                'ICICI Lombard': { ms: '27.0%', rank: '#1', trend: [20.1, 22.4, 24.8, 27.0], col: '#0284c7' },
+                'HDFC ERGO': { ms: '18.3%', rank: '#2', trend: [12.1, 14.5, 16.8, 18.3], col: '#da291c' },
+                'Tata AIG': { ms: '11.7%', rank: '#3', trend: [8.5, 9.8, 10.9, 11.7], col: '#4338ca' },
+                'Go Digit': { ms: '10.5%', rank: '#4', trend: [5.2, 7.1, 9.0, 10.5], col: '#10b981' },
+                'Bajaj Allianz': { ms: '9.4%', rank: '#5', trend: [10.2, 10.0, 9.6, 9.4], col: '#f59e0b' },
+                'ACKO': { ms: '8.6%', rank: '#6', trend: [4.1, 5.8, 7.2, 8.6], col: '#8b5cf6' }
+            };
+            const data = stats[brand] || stats['HDFC ERGO'];
+            document.getElementById('ins-perf-ms').innerText = data.ms;
+            document.getElementById('ins-perf-rank').innerText = data.rank;
+            c1_it.data.datasets[0].data = data.trend;
+            c1_it.data.datasets[0].borderColor = data.col;
+            c1_it.update();
+        }
+
+        function setScenarioMode(mode, btn) {
+            document.querySelectorAll('.scen-btn').forEach(b => b.classList.remove('active-scen'));
+            if (btn) btn.classList.add('active-scen');
+        }
+
+        function resetAllFilters() {
+            document.getElementById('flt-zone').value = 'all';
+            document.getElementById('flt-chan').value = 'all';
+            document.getElementById('flt-tier').value = 'all';
+            document.getElementById('flt-year').value = 'all';
+            selStateFilter = null;
+            applyUniversalFilters();
+        }
+
+        window.onload = () => {
+            initCharts();
+            applyUniversalFilters();
+        };
+    </script>
+</body>
+</html>
